@@ -57,23 +57,21 @@ func main() {
 	entry_task := loadtest.NewEntryTask("MyProject", loadtest.TaskOptions{})
 
 	entry_task.AddSection("profile", func(t *loadtest.Task) {
-		t.AddTask("view", func(ctx context.Context) error {
+		t.AddSubTask("view", func(ctx context.Context) error {
 			client := clients.HTTPFromContext(ctx)
-			resp, err := client.Get("/v1/me")
+			_, err := client.Get("/v1/me")
 			if err != nil {
 				return err
 			}
-			log.Println("Response: ", string(resp.Body))
 			return nil
 		}, loadtest.TaskOptions{Weight: 10})
 
-		t.AddTask("edit", func(ctx context.Context) error {
+		t.AddSubTask("edit", func(ctx context.Context) error {
 			client := clients.HTTPFromContext(ctx)
-			resp, err := client.Patch("/profile", nil)
+			_, err := client.Patch("/profile", nil)
 			if err != nil {
 				return err
 			}
-			log.Println("Response: ", string(resp.Body))
 			return nil
 		}, loadtest.TaskOptions{Weight: 1})
 

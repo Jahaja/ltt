@@ -140,14 +140,22 @@ func (du *DefaultUser) Tick() {
 		log.Fatal("failed to select a task")
 	}
 
-	if next.RunFunc != nil {
-		err := next.RunFunc(du.Context())
-		if err != nil {
-			log.Println("user task run ended with an error: %w", err)
+	du.task = next
+	if du.task.RunFunc != nil {
+		// Pass on the current task in the context
+		du.SetContext(NewTaskContext(du.Context(), next))
+
+		start := time.Now()
+		err := du.task.RunFunc(du.Context())
+
+		duration := time.Now().Sub(start)
+		lt := FromContext(du.Context())
+		lt.TaskRunChan <- &TaskRun{
+			Task:     du.task,
+			Duration: duration,
+			Error:    err,
 		}
 	}
-
-	du.task = next
 }
 
 func (du *DefaultUser) Sleep() {

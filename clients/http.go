@@ -52,10 +52,11 @@ func HTTPFromContext(ctx context.Context) *HTTPClient {
 }
 
 type HTTPClient struct {
-	std     *http.Client
+	std *http.Client
+	// Base uri to append the path to, e.g. "http://localhost/"
 	baseURI string
-	user    loadtest.User
-
+	// The owning User of this http client
+	user loadtest.User
 	// These headers will be set in all requests
 	Headers http.Header
 }
