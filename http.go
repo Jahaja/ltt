@@ -43,7 +43,7 @@ func NewHTTPClientContext(ctx context.Context, client *HTTPClient) context.Conte
 	return context.WithValue(ctx, httpClientContextKey, client)
 }
 
-func HTTPFromContext(ctx context.Context) *HTTPClient {
+func HTTPClientFromContext(ctx context.Context) *HTTPClient {
 	if c, ok := ctx.Value(httpClientContextKey).(*HTTPClient); ok {
 		return c
 	}
@@ -93,14 +93,18 @@ func (c *HTTPClient) handleResponse(method string, path string, std_resp *http.R
 		RawResponse: std_resp,
 	}
 
-	log.Printf("HTTPClient(user %d): response for %s %s: %d (%d bytes)\n",
-		c.user.ID(), method, path, resp.StatusCode, len(resp.Body))
+	if FromContext(c.user.Context()).Config.Verbose {
+		log.Printf("HTTPClient(user %d): response for %s %s: %d (%d bytes)\n",
+			c.user.ID(), method, path, resp.StatusCode, len(resp.Body))
+	}
 
 	return resp, nil
 }
 
 func (c *HTTPClient) Request(method string, path string, body []byte) (*HTTPResponse, error) {
-	log.Printf("HTTPClient(user %d): requesting %s %s\n", c.user.ID(), method, path)
+	if FromContext(c.user.Context()).Config.Verbose {
+		log.Printf("HTTPClient(user %d): requesting %s %s\n", c.user.ID(), method, path)
+	}
 
 	std_req, err := http.NewRequest(method, c.getUrl(path), bytes.NewReader(body))
 	if err != nil {
@@ -141,9 +145,23 @@ func (c *HTTPClient) Post(path string, body []byte) (*HTTPResponse, error) {
 }
 
 func (c *HTTPClient) PostForm(path string, data url.Values) (*HTTPResponse, error) {
-	log.Printf("HTTPClient(user %d): requesting form POST %s\n", c.user.ID(), path)
+	if FromContext(c.user.Context()).Config.Verbose {
+		log.Printf("HTTPClient(user %d): requesting %s %s\n", c.user.ID(), http.MethodPost, path)
+	}
 
-	std_resp, err := c.std.PostForm(c.getUrl(path), data)
+	std_req, err := http.NewRequest(http.MethodPost, c.getUrl(path), strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the default headers
+	for k, v := range c.Headers {
+		std_req.Header[k] = v
+	}
+
+	std_req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	std_resp, err := c.std.Do(std_req)
 	if err != nil {
 		return nil, err
 	}

@@ -68,10 +68,9 @@ func (du *DefaultUser) Context() context.Context {
 }
 
 func (du *DefaultUser) Spawn() {
-	lt := FromContext(du.Context())
-	if lt.DefaultUserSpawn != nil {
-		lt.DefaultUserSpawn(du)
-	}
+	// Run the entry task on spawn
+	du.runTask()
+	du.Sleep()
 }
 
 func (du *DefaultUser) Tick() {
@@ -141,10 +140,11 @@ func (du *DefaultUser) Tick() {
 	}
 
 	du.task = next
-	if du.task.RunFunc != nil {
-		// Pass on the current task in the context
-		du.SetContext(NewTaskContext(du.Context(), next))
+	du.runTask()
+}
 
+func (du *DefaultUser) runTask() {
+	if du.task.RunFunc != nil {
 		start := time.Now()
 		err := du.task.RunFunc(du.Context())
 
@@ -160,16 +160,15 @@ func (du *DefaultUser) Tick() {
 
 func (du *DefaultUser) Sleep() {
 	lt := FromContext(du.Context())
-	if lt.DefaultUserSleep != nil {
-		lt.DefaultUserSleep(du)
-		return
-	}
 
 	rand.Seed(time.Now().UnixNano())
 
 	sleepTime := lt.Config.MinSleepTime
-	sleepTime += rand.Intn(lt.Config.MaxSleepTime)
+	sleepTime += rand.Intn(lt.Config.MaxSleepTime - lt.Config.MinSleepTime)
 
-	log.Printf("DefaultUser(%d): sleeping for %d seconds\n", du.ID(), sleepTime)
+	if lt.Config.Verbose {
+		log.Printf("DefaultUser(%d): sleeping for %d seconds\n", du.ID(), sleepTime)
+	}
+
 	time.Sleep(time.Second * time.Duration(sleepTime))
 }

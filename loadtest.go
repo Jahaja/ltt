@@ -30,6 +30,8 @@ type Config struct {
 	MinSleepTime int
 	// Max sleep time between tasks in seconds
 	MaxSleepTime int
+	// Verbose logging
+	Verbose bool
 }
 
 type Status int
@@ -156,13 +158,11 @@ type LoadTest struct {
 	Config Config
 	Status Status
 
-	StartTime        time.Time
-	DefaultUserSpawn func(User)
-	DefaultUserSleep func(User)
-	SpawnedUsers     []User
-	UserSpawnChan    chan User
-	TaskRunChan      chan *TaskRun
-	Stats            Statistics
+	StartTime     time.Time
+	SpawnedUsers  []User
+	UserSpawnChan chan User
+	TaskRunChan   chan *TaskRun
+	Stats         Statistics
 }
 
 func NewConfigFromFlags() Config {
@@ -173,8 +173,10 @@ func NewConfigFromFlags() Config {
 	flag.IntVar(&req_timeout, "request-timeout", 5000, "Request timeout in ms (Default 5000)")
 	flag.IntVar(&conf.MinSleepTime, "min-sleep-time", 1, "Minimum sleep time between a user's tasks in seconds (Default 1)")
 	flag.IntVar(&conf.MaxSleepTime, "max-sleep-time", 10, "Maximum sleep time between a user's tasks in seconds (Default 10)")
+	flag.IntVar(&conf.NumSpawnPerSecond, "num-spawn-per-sec", 1, "Number of user to spawn per second (Default 1)")
 	flag.StringVar(&conf.APIHost, "api-host", "", "REST API port to bind to. (Default all, empty string)")
 	flag.IntVar(&conf.APIPort, "api-port", 4141, "REST API port to bind to. (Default 4141)")
+	flag.BoolVar(&conf.Verbose, "verbose", false, "Verbose logging (default false)")
 	flag.Parse()
 
 	conf.RequestTimeout = time.Millisecond * time.Duration(req_timeout)
@@ -185,70 +187,88 @@ func (lt *LoadTest) Stop() {
 	lt.Status = StatusStopping
 }
 
+func (lt *LoadTest) handleTaskRun(tr *TaskRun) {
+	// Only collect stats if we're in a clean running state
+	if lt.Status != StatusRunning {
+		return
+	}
+
+	name := tr.Task.FullName()
+	lt.Stats.Lock()
+	lt.Stats.RPSMap[time.Now().Unix()]++
+	lt.Stats.NumTotal++
+	lt.Stats.TotalDuration += tr.Duration.Milliseconds()
+	if tr.Error != nil {
+		lt.Stats.NumFailed++
+	} else {
+		lt.Stats.NumSuccessful++
+	}
+
+	if _, ok := lt.Stats.Tasks[name]; !ok {
+		lt.Stats.Tasks[name] = NewTaskStat()
+	}
+
+	taskStat := lt.Stats.Tasks[name]
+	lt.Stats.Unlock()
+
+	taskStat.Lock()
+	durationMS := tr.Duration.Milliseconds()
+
+	taskStat.Metrics[durationMS]++
+	taskStat.TotalRuns++
+	taskStat.TotalDuration += durationMS
+	if tr.Error != nil {
+		taskStat.NumFailed++
+		taskStat.Errors[tr.Error.Error()]++
+	} else {
+		taskStat.NumSuccessful++
+	}
+	taskStat.Unlock()
+}
+
+func (lt *LoadTest) handleSpawnedUser(u User) {
+	lt.SpawnedUsers = append(lt.SpawnedUsers, u)
+	if len(lt.SpawnedUsers) == lt.Config.NumUsers {
+		lt.Status = StatusRunning
+		log.Printf("All %d users have been spawned, status changed to running\n", lt.Config.NumUsers)
+	}
+}
+
+func (lt *LoadTest) cleanRPSJob() {
+	for {
+		lt.Stats.Lock()
+		lt.Stats.CleanRPSMap()
+		lt.Stats.Unlock()
+		time.Sleep(time.Second * 30)
+	}
+}
+
+func (lt *LoadTest) runAPIJob() {
+	err := RunAPIServer(lt)
+	if err != nil {
+		log.Println("failed to start api server: %s", err.Error())
+	}
+}
+
+func (lt *LoadTest) handleChannelsJob() {
+	for {
+		select {
+		case du := <-lt.UserSpawnChan:
+			lt.handleSpawnedUser(du)
+		case tr := <-lt.TaskRunChan:
+			lt.handleTaskRun(tr)
+		}
+	}
+}
+
 func (lt *LoadTest) Run(entry_task *Task) {
-	log.Println("Starting load test tool")
+	log.Println("Starting Load Testing Tool")
 
 	lt.Status = StatusSpawning
-	go func() {
-		for {
-			select {
-			case du := <-lt.UserSpawnChan:
-				lt.SpawnedUsers = append(lt.SpawnedUsers, du)
-				if len(lt.SpawnedUsers) == lt.Config.NumUsers {
-					lt.Status = StatusRunning
-					log.Printf("all %d users have been spawned, status changed to running\n", lt.Config.NumUsers)
-				}
-			case tr := <-lt.TaskRunChan:
-				name := tr.Task.FullName()
-				lt.Stats.Lock()
-				lt.Stats.RPSMap[time.Now().Unix()]++
-				lt.Stats.NumTotal++
-				lt.Stats.TotalDuration += tr.Duration.Milliseconds()
-				if tr.Error != nil {
-					lt.Stats.NumFailed++
-				} else {
-					lt.Stats.NumSuccessful++
-				}
 
-				if _, ok := lt.Stats.Tasks[name]; !ok {
-					lt.Stats.Tasks[name] = NewTaskStat()
-				}
-
-				taskStat := lt.Stats.Tasks[name]
-				lt.Stats.Unlock()
-
-				taskStat.Lock()
-				durationMS := tr.Duration.Milliseconds()
-
-				taskStat.Metrics[durationMS]++
-				taskStat.TotalRuns++
-				taskStat.TotalDuration += durationMS
-				if tr.Error != nil {
-					taskStat.NumFailed++
-					taskStat.Errors[tr.Error.Error()]++
-				} else {
-					taskStat.NumSuccessful++
-				}
-				taskStat.Unlock()
-			}
-		}
-	}()
-
-	go func() {
-		err := RunAPIServer(lt)
-		if err != nil {
-			log.Println("failed to start api server: %s", err.Error())
-		}
-	}()
-
-	go func() {
-		for {
-			lt.Stats.Lock()
-			lt.Stats.CleanRPSMap()
-			lt.Stats.Unlock()
-			time.Sleep(time.Second * 30)
-		}
-	}()
+	go lt.handleChannelsJob()
+	go lt.runAPIJob()
+	go lt.cleanRPSJob()
 
 	wg := sync.WaitGroup{}
 	for i := 0; i < lt.Config.NumUsers; i++ {
@@ -279,6 +299,10 @@ func (lt *LoadTest) Run(entry_task *Task) {
 		go func() {
 			defer wg.Done()
 
+			// Sleep according to user ID to ramp up the user spawns
+			preSpawnSleepTime := u.ID() / int64(lt.Config.NumSpawnPerSecond)
+			time.Sleep(time.Second * time.Duration(preSpawnSleepTime))
+
 			u.Spawn()
 			lt.UserSpawnChan <- u
 			for lt.Status != StatusStopping {
@@ -290,7 +314,7 @@ func (lt *LoadTest) Run(entry_task *Task) {
 	wg.Wait()
 }
 
-func New(config Config) *LoadTest {
+func NewLoadTest(config Config) *LoadTest {
 	return &LoadTest{
 		Config:        config,
 		Status:        StatusStopped,

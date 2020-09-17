@@ -26,39 +26,38 @@ func init() {
 
 func main() {
 	conf := ltt.NewConfigFromFlags()
-	lt := ltt.New(conf)
+	lt := ltt.NewLoadTest(conf)
 
-	lt.DefaultUserSpawn = func(user ltt.User) {
-		ctx := user.Context()
+	entryTask := ltt.NewEntryTask("auth", func(ctx context.Context) error {
+		user := ltt.UserFromContext(ctx)
 		client := ltt.NewHTTPClient(ctx, "http://localhost:4000")
 
 		ctx = ltt.NewHTTPClientContext(ctx, client)
 		user.SetContext(ctx)
 
 		data, _ := json.Marshal(map[string]string{
-			"username": "",
-			"password": "",
+			"username": "coach@360player.local",
+			"password": "password",
 		})
 
 		resp, err := client.Post("/v1/auth", data)
 		if err != nil {
-			log.Printf("failed to login: %s\n", err.Error())
-			return
+			return err
 		}
 
 		obj := make(map[string]string)
 		err = resp.JSON(&obj)
-
-		if err == nil {
-			client.Headers.Set("Authorization", "Bearer "+obj["token"])
+		if err != nil {
+			return err
 		}
-	}
 
-	entry_task := ltt.NewEntryTask("MyProject", ltt.TaskOptions{})
+		client.Headers.Set("Authorization", "Bearer "+obj["token"])
+		return nil
+	}, ltt.TaskOptions{})
 
-	entry_task.AddSection("profile", func(t *ltt.Task) {
+	entryTask.AddSection("profile", func(t *ltt.Task) {
 		t.AddSubTask("view", func(ctx context.Context) error {
-			client := ltt.HTTPFromContext(ctx)
+			client := ltt.HTTPClientFromContext(ctx)
 			_, err := client.Get("/v1/me")
 			if err != nil {
 				return err
@@ -67,7 +66,7 @@ func main() {
 		}, ltt.TaskOptions{Weight: 10})
 
 		t.AddSubTask("edit", func(ctx context.Context) error {
-			client := ltt.HTTPFromContext(ctx)
+			client := ltt.HTTPClientFromContext(ctx)
 			_, err := client.Patch("/profile", nil)
 			if err != nil {
 				return err
@@ -75,7 +74,7 @@ func main() {
 			return nil
 		}, ltt.TaskOptions{Weight: 1})
 
-	}, ltt.TaskOptions{Weight: 1, SelectionStrategy: ltt.TaskSelectionStrategyRandom})
+	}, ltt.TaskOptions{Weight: 1})
 
-	lt.Run(entry_task)
+	lt.Run(entryTask)
 }

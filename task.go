@@ -8,10 +8,6 @@ import (
 type TaskFunc func(context.Context) error
 type TaskSelectionStrategyType int
 
-type taskContextKeyType int
-
-var taskContextKey taskContextKeyType
-
 const (
 	TaskSelectionStrategyRandom TaskSelectionStrategyType = iota
 	TaskSelectionStrategyInOrder
@@ -40,8 +36,7 @@ func (t *Task) AddSection(name string, setup func(*Task), opts TaskOptions) *Tas
 }
 
 func (t *Task) AddSubTask(name string, f TaskFunc, opts TaskOptions) *Task {
-	st := NewTask(name, t, opts)
-	st.RunFunc = f
+	st := NewTask(name, t, f, opts)
 
 	t.SubTasks = append(t.SubTasks, st)
 	return st
@@ -69,23 +64,16 @@ func (t *Task) FullName() string {
 	return sb.String()
 }
 
-func NewEntryTask(name string, opts TaskOptions) *Task {
-	return NewTask(name, nil, opts)
+// The entry task is the first task each User run, and only once
+func NewEntryTask(name string, f TaskFunc, opts TaskOptions) *Task {
+	return NewTask(name, nil, f, opts)
 }
 
-func NewTask(name string, parent *Task, opts TaskOptions) *Task {
+func NewTask(name string, parent *Task, f TaskFunc, opts TaskOptions) *Task {
 	return &Task{
 		Name:    name,
 		Parent:  parent,
+		RunFunc: f,
 		Options: opts,
 	}
-}
-
-func TaskFromContext(ctx context.Context) *Task {
-	t, _ := ctx.Value(taskContextKey).(*Task)
-	return t
-}
-
-func NewTaskContext(ctx context.Context, t *Task) context.Context {
-	return context.WithValue(ctx, taskContextKey, t)
 }
