@@ -49,13 +49,14 @@ type TaskRun struct {
 
 type TaskStats struct {
 	sync.Mutex
-	TotalRuns       int64           `json:"total_runs"`
-	NumSuccessful   int64           `json:"num_successful"`
-	NumFailed       int64           `json:"num_failed"`
-	TotalDuration   int64           `json:"total_duration"`
-	Metrics         map[int64]int64 `json:"-"`
-	Percentiles     map[int]int64   `json:"percentiles"`
-	AverageDuration float32         `json:"average_duration"`
+	TotalRuns       int64            `json:"total_runs"`
+	NumSuccessful   int64            `json:"num_successful"`
+	NumFailed       int64            `json:"num_failed"`
+	TotalDuration   int64            `json:"total_duration"`
+	Metrics         map[int64]int64  `json:"-"`
+	Percentiles     map[int]int64    `json:"percentiles"`
+	AverageDuration float32          `json:"average_duration"`
+	Errors          map[string]int64 `json:"errors"`
 }
 
 func (ts *TaskStats) Calculate() {
@@ -100,6 +101,7 @@ func NewTaskStat() *TaskStats {
 	return &TaskStats{
 		Metrics:     make(map[int64]int64),
 		Percentiles: make(map[int]int64),
+		Errors:      make(map[string]int64),
 	}
 }
 
@@ -223,6 +225,7 @@ func (lt *LoadTest) Run(entry_task *Task) {
 				taskStat.TotalDuration += durationMS
 				if tr.Error != nil {
 					taskStat.NumFailed++
+					taskStat.Errors[tr.Error.Error()]++
 				} else {
 					taskStat.NumSuccessful++
 				}

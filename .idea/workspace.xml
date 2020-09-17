@@ -1,13 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="763a34c6-99e1-4197-9515-2313045d4198" name="Default Changelist" comment="Initial import">
-      <change afterPath="$PROJECT_DIR$/loadtest/restapi.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="763a34c6-99e1-4197-9515-2313045d4198" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/clients/http.go" beforeDir="false" afterPath="$PROJECT_DIR$/clients/http.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/loadtest/loadtest.go" beforeDir="false" afterPath="$PROJECT_DIR$/loadtest/loadtest.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/loadtest/task.go" beforeDir="false" afterPath="$PROJECT_DIR$/loadtest/task.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/loadtest/user.go" beforeDir="false" afterPath="$PROJECT_DIR$/loadtest/user.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -83,7 +79,8 @@
     <option name="CHECK_NEW_TODO" value="false" />
     <option name="LOCAL_CHANGES_DETAILS_PREVIEW_SHOWN" value="false" />
     <MESSAGE value="Initial import" />
-    <option name="LAST_COMMIT_MESSAGE" value="Initial import" />
+    <MESSAGE value="Stats and rest api" />
+    <option name="LAST_COMMIT_MESSAGE" value="Stats and rest api" />
   </component>
   <component name="VgoProject">
     <integration-enabled>true</integration-enabled>
@@ -97,10 +94,10 @@
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="2336" y="170" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600287483919" />
-    <state x="2448" y="56" width="849" height="867" key="CommitChangelistDialog2" timestamp="1600285417956">
+    <state x="2446" y="38" width="849" height="867" key="CommitChangelistDialog2" timestamp="1600300215513">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="2448" y="56" width="849" height="867" key="CommitChangelistDialog2/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600285417956" />
+    <state x="2446" y="38" width="849" height="867" key="CommitChangelistDialog2/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600300215513" />
     <state x="2516" y="237" width="706" height="633" key="EditFileWatcherDialog" timestamp="1600260294676">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
@@ -109,38 +106,38 @@
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="2656" y="256" width="437" height="502" key="FileChooserDialogImpl/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600260320391" />
-    <state width="937" height="291" key="GridCell.Tab.0.bottom" timestamp="1600299656457">
+    <state width="937" height="291" key="GridCell.Tab.0.bottom" timestamp="1600301182749">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="937" height="291" key="GridCell.Tab.0.bottom/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600299656457" />
-    <state width="937" height="291" key="GridCell.Tab.0.center" timestamp="1600299656457">
+    <state width="937" height="291" key="GridCell.Tab.0.bottom/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301182749" />
+    <state width="937" height="291" key="GridCell.Tab.0.center" timestamp="1600301182749">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="937" height="291" key="GridCell.Tab.0.center/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600299656457" />
-    <state width="937" height="291" key="GridCell.Tab.0.left" timestamp="1600299656457">
+    <state width="937" height="291" key="GridCell.Tab.0.center/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301182749" />
+    <state width="937" height="291" key="GridCell.Tab.0.left" timestamp="1600301182749">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="937" height="291" key="GridCell.Tab.0.left/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600299656457" />
-    <state width="937" height="291" key="GridCell.Tab.0.right" timestamp="1600299656457">
+    <state width="937" height="291" key="GridCell.Tab.0.left/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301182749" />
+    <state width="937" height="291" key="GridCell.Tab.0.right" timestamp="1600301182749">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="937" height="291" key="GridCell.Tab.0.right/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600299656457" />
-    <state width="937" height="291" key="GridCell.Tab.1.bottom" timestamp="1600299656397">
+    <state width="937" height="291" key="GridCell.Tab.0.right/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301182749" />
+    <state width="937" height="291" key="GridCell.Tab.1.bottom" timestamp="1600301182690">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="937" height="291" key="GridCell.Tab.1.bottom/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600299656397" />
-    <state width="937" height="291" key="GridCell.Tab.1.center" timestamp="1600299656397">
+    <state width="937" height="291" key="GridCell.Tab.1.bottom/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301182690" />
+    <state width="937" height="291" key="GridCell.Tab.1.center" timestamp="1600301182690">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="937" height="291" key="GridCell.Tab.1.center/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600299656397" />
-    <state width="937" height="291" key="GridCell.Tab.1.left" timestamp="1600299656397">
+    <state width="937" height="291" key="GridCell.Tab.1.center/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301182690" />
+    <state width="937" height="291" key="GridCell.Tab.1.left" timestamp="1600301182690">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="937" height="291" key="GridCell.Tab.1.left/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600299656397" />
-    <state width="937" height="291" key="GridCell.Tab.1.right" timestamp="1600299656397">
+    <state width="937" height="291" key="GridCell.Tab.1.left/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301182690" />
+    <state width="937" height="291" key="GridCell.Tab.1.right" timestamp="1600301182690">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="937" height="291" key="GridCell.Tab.1.right/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600299656397" />
+    <state width="937" height="291" key="GridCell.Tab.1.right/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301182690" />
     <state x="2467" y="320" key="SettingsEditor" timestamp="1600260296272">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
@@ -149,6 +146,10 @@
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="2607" y="269" width="717" height="524" key="StructurePopup/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600290167086" />
+    <state x="2473" y="248" width="804" height="518" key="Vcs.Push.Dialog.v2" timestamp="1600300219668">
+      <screen x="1920" y="0" width="1920" height="1080" />
+    </state>
+    <state x="2473" y="248" width="804" height="518" key="Vcs.Push.Dialog.v2/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600300219668" />
     <state x="2611" y="455" key="com.goide.actions.debugger.GoReplayTraceAction$TraceDirDialog" timestamp="1600287347021">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>

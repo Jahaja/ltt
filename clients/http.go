@@ -30,10 +30,11 @@ func NewHTTPClient(ctx context.Context, baseURI string) *HTTPClient {
 		Jar:     jar,
 	}
 	client := &HTTPClient{
-		std:     std_client,
-		baseURI: baseURI,
-		user:    loadtest.UserFromContext(ctx),
-		Headers: make(http.Header),
+		std:              std_client,
+		baseURI:          baseURI,
+		user:             loadtest.UserFromContext(ctx),
+		Headers:          make(http.Header),
+		ErrorOnErrorCode: true,
 	}
 
 	return client
@@ -59,6 +60,8 @@ type HTTPClient struct {
 	user loadtest.User
 	// These headers will be set in all requests
 	Headers http.Header
+	// If true, 4xx-5xx status code will return an error, defaults to true
+	ErrorOnErrorCode bool
 }
 
 type HTTPResponse struct {
@@ -79,6 +82,10 @@ func (c *HTTPClient) handleResponse(method string, path string, std_resp *http.R
 	response_body, err := ioutil.ReadAll(std_resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if std_resp.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("error status code %d: %s", std_resp.StatusCode, string(response_body))
 	}
 
 	resp := &HTTPResponse{
