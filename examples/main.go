@@ -6,9 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"ltt/clients"
-	"ltt/loadtest"
 	"os"
+
+	"github.com/Jahaja/ltt"
 )
 
 func help() {
@@ -25,14 +25,14 @@ func init() {
 }
 
 func main() {
-	conf := loadtest.NewConfigFromFlags()
-	lt := loadtest.New(conf)
+	conf := ltt.NewConfigFromFlags()
+	lt := ltt.New(conf)
 
-	lt.DefaultUserSpawn = func(user loadtest.User) {
+	lt.DefaultUserSpawn = func(user ltt.User) {
 		ctx := user.Context()
-		client := clients.NewHTTPClient(ctx, "http://localhost:4000")
+		client := ltt.NewHTTPClient(ctx, "http://localhost:4000")
 
-		ctx = clients.NewHTTPClientContext(ctx, client)
+		ctx = ltt.NewHTTPClientContext(ctx, client)
 		user.SetContext(ctx)
 
 		data, _ := json.Marshal(map[string]string{
@@ -54,28 +54,28 @@ func main() {
 		}
 	}
 
-	entry_task := loadtest.NewEntryTask("MyProject", loadtest.TaskOptions{})
+	entry_task := ltt.NewEntryTask("MyProject", ltt.TaskOptions{})
 
-	entry_task.AddSection("profile", func(t *loadtest.Task) {
+	entry_task.AddSection("profile", func(t *ltt.Task) {
 		t.AddSubTask("view", func(ctx context.Context) error {
-			client := clients.HTTPFromContext(ctx)
+			client := ltt.HTTPFromContext(ctx)
 			_, err := client.Get("/v1/me")
 			if err != nil {
 				return err
 			}
 			return nil
-		}, loadtest.TaskOptions{Weight: 10})
+		}, ltt.TaskOptions{Weight: 10})
 
 		t.AddSubTask("edit", func(ctx context.Context) error {
-			client := clients.HTTPFromContext(ctx)
+			client := ltt.HTTPFromContext(ctx)
 			_, err := client.Patch("/profile", nil)
 			if err != nil {
 				return err
 			}
 			return nil
-		}, loadtest.TaskOptions{Weight: 1})
+		}, ltt.TaskOptions{Weight: 1})
 
-	}, loadtest.TaskOptions{Weight: 1, SelectionStrategy: loadtest.TaskSelectionStrategyRandom})
+	}, ltt.TaskOptions{Weight: 1, SelectionStrategy: ltt.TaskSelectionStrategyRandom})
 
 	lt.Run(entry_task)
 }

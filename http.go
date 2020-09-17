@@ -1,4 +1,4 @@
-package clients
+package ltt
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"ltt/loadtest"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -24,7 +23,7 @@ func NewHTTPClient(ctx context.Context, baseURI string) *HTTPClient {
 		log.Fatalf("failed to create cookie jar: %w", err)
 	}
 
-	lt := loadtest.FromContext(ctx)
+	lt := FromContext(ctx)
 	std_client := &http.Client{
 		Timeout: lt.Config.RequestTimeout,
 		Jar:     jar,
@@ -32,7 +31,7 @@ func NewHTTPClient(ctx context.Context, baseURI string) *HTTPClient {
 	client := &HTTPClient{
 		std:              std_client,
 		baseURI:          baseURI,
-		user:             loadtest.UserFromContext(ctx),
+		user:             UserFromContext(ctx),
 		Headers:          make(http.Header),
 		ErrorOnErrorCode: true,
 	}
@@ -57,7 +56,7 @@ type HTTPClient struct {
 	// Base uri to append the path to, e.g. "http://localhost/"
 	baseURI string
 	// The owning User of this http client
-	user loadtest.User
+	user User
 	// These headers will be set in all requests
 	Headers http.Header
 	// If true, 4xx-5xx status code will return an error, defaults to true

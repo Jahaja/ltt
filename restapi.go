@@ -1,4 +1,4 @@
-package loadtest
+package ltt
 
 import (
 	"encoding/json"

@@ -2,9 +2,15 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="763a34c6-99e1-4197-9515-2313045d4198" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/clients/http.go" beforeDir="false" afterPath="$PROJECT_DIR$/clients/http.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/loadtest/loadtest.go" beforeDir="false" afterPath="$PROJECT_DIR$/loadtest/loadtest.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/clients/http.go" beforeDir="false" afterPath="$PROJECT_DIR$/http.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/loadtest/loadtest.go" beforeDir="false" afterPath="$PROJECT_DIR$/loadtest.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/loadtest/restapi.go" beforeDir="false" afterPath="$PROJECT_DIR$/restapi.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/loadtest/storage.go" beforeDir="false" afterPath="$PROJECT_DIR$/storage.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/loadtest/task.go" beforeDir="false" afterPath="$PROJECT_DIR$/task.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/loadtest/user.go" beforeDir="false" afterPath="$PROJECT_DIR$/user.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/examples/main.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,19 +60,25 @@
     <property name="restartRequiresConfirmation" value="false" />
     <property name="settings.editor.selected.configurable" value="watcher.settings" />
   </component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/examples" />
+    </key>
+  </component>
   <component name="RunManager">
-    <configuration name="go build ltt" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
+    <configuration name="go build github.com/Jahaja/ltt/examples" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
       <module name="ltt" />
       <working_directory value="$PROJECT_DIR$" />
       <kind value="PACKAGE" />
-      <filePath value="$PROJECT_DIR$/main.go" />
-      <package value="ltt" />
+      <filePath value="$PROJECT_DIR$/examples/main.go" />
+      <package value="github.com/Jahaja/ltt/examples" />
       <directory value="$PROJECT_DIR$" />
       <method v="2" />
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go Build.go build ltt" />
+        <item itemvalue="Go Build.go build github.com/Jahaja/ltt/examples" />
       </list>
     </recent_temporary>
   </component>
@@ -80,7 +92,8 @@
     <option name="LOCAL_CHANGES_DETAILS_PREVIEW_SHOWN" value="false" />
     <MESSAGE value="Initial import" />
     <MESSAGE value="Stats and rest api" />
-    <option name="LAST_COMMIT_MESSAGE" value="Stats and rest api" />
+    <MESSAGE value="Task errors collection" />
+    <option name="LAST_COMMIT_MESSAGE" value="Task errors collection" />
   </component>
   <component name="VgoProject">
     <integration-enabled>true</integration-enabled>
@@ -90,14 +103,14 @@
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="2413" y="179" width="846" height="666" key="#Go/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600260089928" />
-    <state x="2336" y="170" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1600287483919">
+    <state x="2334" y="152" width="1084" height="709" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1600304091251">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="2336" y="170" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600287483919" />
-    <state x="2446" y="38" width="849" height="867" key="CommitChangelistDialog2" timestamp="1600300215513">
+    <state x="2334" y="152" width="1084" height="709" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600304091251" />
+    <state x="2444" y="20" width="849" height="867" key="CommitChangelistDialog2" timestamp="1600301288054">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="2446" y="38" width="849" height="867" key="CommitChangelistDialog2/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600300215513" />
+    <state x="2444" y="20" width="849" height="867" key="CommitChangelistDialog2/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301288054" />
     <state x="2516" y="237" width="706" height="633" key="EditFileWatcherDialog" timestamp="1600260294676">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
@@ -146,10 +159,10 @@
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="2607" y="269" width="717" height="524" key="StructurePopup/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600290167086" />
-    <state x="2473" y="248" width="804" height="518" key="Vcs.Push.Dialog.v2" timestamp="1600300219668">
+    <state x="2471" y="230" width="804" height="518" key="Vcs.Push.Dialog.v2" timestamp="1600301289533">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="2473" y="248" width="804" height="518" key="Vcs.Push.Dialog.v2/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600300219668" />
+    <state x="2471" y="230" width="804" height="518" key="Vcs.Push.Dialog.v2/0.0.1920.1080/1920.0.1920.1080@1920.0.1920.1080" timestamp="1600301289533" />
     <state x="2611" y="455" key="com.goide.actions.debugger.GoReplayTraceAction$TraceDirDialog" timestamp="1600287347021">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
