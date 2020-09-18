@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
-	"os"
-
 	"github.com/Jahaja/ltt"
 )
 
@@ -16,12 +13,6 @@ func help() {
 	fmt.Println("")
 	fmt.Println("Options")
 	flag.PrintDefaults()
-}
-
-func init() {
-	log.SetOutput(os.Stdout)
-	log.SetFlags(log.Ldate | log.Ltime)
-	log.SetPrefix("")
 }
 
 func main() {

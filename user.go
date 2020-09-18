@@ -2,7 +2,6 @@ package ltt
 
 import (
 	"context"
-	"log"
 	"math/rand"
 	"time"
 )
@@ -136,7 +135,7 @@ func (du *DefaultUser) Tick() {
 
 		next = du.task.SubTasks[du.subtaskIndex]
 	} else {
-		log.Fatal("failed to select a task")
+		FromContext(du.Context()).Log.Fatal("failed to select a task")
 	}
 
 	du.task = next
@@ -167,7 +166,7 @@ func (du *DefaultUser) Sleep() {
 	sleepTime += rand.Intn(lt.Config.MaxSleepTime - lt.Config.MinSleepTime)
 
 	if lt.Config.Verbose {
-		log.Printf("DefaultUser(%d): sleeping for %d seconds\n", du.ID(), sleepTime)
+		lt.Log.Printf("DefaultUser(%d): sleeping for %d seconds\n", du.ID(), sleepTime)
 	}
 
 	time.Sleep(time.Second * time.Duration(sleepTime))

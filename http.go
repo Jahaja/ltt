@@ -93,8 +93,9 @@ func (c *HTTPClient) handleResponse(method string, path string, std_resp *http.R
 		RawResponse: std_resp,
 	}
 
-	if FromContext(c.user.Context()).Config.Verbose {
-		log.Printf("HTTPClient(user %d): response for %s %s: %d (%d bytes)\n",
+	lt := FromContext(c.user.Context())
+	if lt.Config.Verbose {
+		lt.Log.Printf("HTTPClient(user %d): response for %s %s: %d (%d bytes)\n",
 			c.user.ID(), method, path, resp.StatusCode, len(resp.Body))
 	}
 
@@ -102,8 +103,9 @@ func (c *HTTPClient) handleResponse(method string, path string, std_resp *http.R
 }
 
 func (c *HTTPClient) Request(method string, path string, body []byte) (*HTTPResponse, error) {
+	lt := FromContext(c.user.Context())
 	if FromContext(c.user.Context()).Config.Verbose {
-		log.Printf("HTTPClient(user %d): requesting %s %s\n", c.user.ID(), method, path)
+		lt.Log.Printf("HTTPClient(user %d): requesting %s %s\n", c.user.ID(), method, path)
 	}
 
 	std_req, err := http.NewRequest(method, c.getUrl(path), bytes.NewReader(body))
@@ -145,8 +147,9 @@ func (c *HTTPClient) Post(path string, body []byte) (*HTTPResponse, error) {
 }
 
 func (c *HTTPClient) PostForm(path string, data url.Values) (*HTTPResponse, error) {
-	if FromContext(c.user.Context()).Config.Verbose {
-		log.Printf("HTTPClient(user %d): requesting %s %s\n", c.user.ID(), http.MethodPost, path)
+	lt := FromContext(c.user.Context())
+	if lt.Config.Verbose {
+		lt.Log.Printf("HTTPClient(user %d): requesting %s %s\n", c.user.ID(), http.MethodPost, path)
 	}
 
 	std_req, err := http.NewRequest(http.MethodPost, c.getUrl(path), strings.NewReader(data.Encode()))

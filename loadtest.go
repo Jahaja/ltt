@@ -3,7 +3,9 @@ package ltt
 import (
 	"context"
 	"flag"
+	"io"
 	"log"
+	"os"
 	"reflect"
 	"sort"
 	"sync"
@@ -32,6 +34,10 @@ type Config struct {
 	MaxSleepTime int
 	// Verbose logging
 	Verbose bool
+	// Logging params
+	LogOutput io.Writer
+	LogPrefix string
+	LogFlags  int
 }
 
 type Status int
@@ -163,6 +169,7 @@ type LoadTest struct {
 	UserSpawnChan chan User
 	TaskRunChan   chan *TaskRun
 	Stats         Statistics
+	Log           *log.Logger
 }
 
 func NewConfigFromFlags() Config {
@@ -175,11 +182,16 @@ func NewConfigFromFlags() Config {
 	flag.IntVar(&conf.MaxSleepTime, "max-sleep-time", 10, "Maximum sleep time between a user's tasks in seconds (Default 10)")
 	flag.IntVar(&conf.NumSpawnPerSecond, "num-spawn-per-sec", 1, "Number of user to spawn per second (Default 1)")
 	flag.StringVar(&conf.APIHost, "api-host", "", "REST API port to bind to. (Default all, empty string)")
+	flag.StringVar(&conf.LogPrefix, "log-prefix", "", "Logging prefix (Default empty string)")
 	flag.IntVar(&conf.APIPort, "api-port", 4141, "REST API port to bind to. (Default 4141)")
 	flag.BoolVar(&conf.Verbose, "verbose", false, "Verbose logging (default false)")
 	flag.Parse()
 
 	conf.RequestTimeout = time.Millisecond * time.Duration(req_timeout)
+	if conf.LogOutput == nil {
+		conf.LogOutput = os.Stdout
+	}
+
 	return conf
 }
 
@@ -230,7 +242,7 @@ func (lt *LoadTest) handleSpawnedUser(u User) {
 	lt.SpawnedUsers = append(lt.SpawnedUsers, u)
 	if len(lt.SpawnedUsers) == lt.Config.NumUsers {
 		lt.Status = StatusRunning
-		log.Printf("All %d users have been spawned, status changed to running\n", lt.Config.NumUsers)
+		lt.Log.Printf("All %d users have been spawned, status changed to running\n", lt.Config.NumUsers)
 	}
 }
 
@@ -246,7 +258,7 @@ func (lt *LoadTest) cleanRPSJob() {
 func (lt *LoadTest) runAPIJob() {
 	err := RunAPIServer(lt)
 	if err != nil {
-		log.Println("failed to start api server: %s", err.Error())
+		lt.Log.Println("failed to start api server: %s", err.Error())
 	}
 }
 
@@ -262,7 +274,7 @@ func (lt *LoadTest) handleChannelsJob() {
 }
 
 func (lt *LoadTest) Run(entry_task *Task) {
-	log.Println("Starting Load Testing Tool")
+	lt.Log.Println("Starting Load Testing Tool")
 
 	lt.Status = StatusSpawning
 
@@ -281,7 +293,7 @@ func (lt *LoadTest) Run(entry_task *Task) {
 			ok := false
 			u, ok = reflect.New(uv.Type()).Interface().(User)
 			if !ok {
-				log.Fatalf("failed to cast LoadTest.User to User\n")
+				lt.Log.Fatalf("failed to cast LoadTest.User to User\n")
 			}
 		}
 
@@ -324,6 +336,7 @@ func NewLoadTest(config Config) *LoadTest {
 			RPSMap: make(map[int64]int64),
 		},
 		TaskRunChan: make(chan *TaskRun, config.NumUsers),
+		Log:         log.New(config.LogOutput, config.LogPrefix, config.LogFlags),
 	}
 }
 

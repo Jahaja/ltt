@@ -3,7 +3,6 @@ package ltt
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 )
 
@@ -24,7 +23,7 @@ func RunAPIServer(lt *LoadTest) error {
 		writer.Write(data)
 	})
 
-	log.Printf("Starting REST API on %s:%d", lt.Config.APIHost, lt.Config.APIPort)
+	lt.Log.Printf("Starting REST API on %s:%d", lt.Config.APIHost, lt.Config.APIPort)
 	err := http.ListenAndServe(fmt.Sprintf("%s:%d", lt.Config.APIHost, lt.Config.APIPort), nil)
 	if err != nil {
 		return err
