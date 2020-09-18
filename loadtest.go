@@ -34,16 +34,18 @@ type Config struct {
 	MaxSleepTime int
 	// Verbose logging
 	Verbose bool
+	// If we should start spawning users on startup
+	SpawnOnStartup bool
 	// Logging params
 	LogOutput io.Writer
 	LogPrefix string
 	LogFlags  int
 }
 
-type Status int
+type StatusType int
 
 const (
-	StatusStopped Status = iota
+	StatusStopped StatusType = iota
 	StatusSpawning
 	StatusRunning
 	StatusStopping
@@ -115,10 +117,13 @@ func NewTaskStat() *TaskStats {
 
 type Statistics struct {
 	sync.Mutex
-	NumTotal      int64 `json:"num_total"`
-	NumSuccessful int64 `json:"num_successful"`
-	NumFailed     int64 `json:"num_failed"`
-	TotalDuration int64 `json:"total_duration"`
+	StartTime     time.Time `json:"start_time"`
+	EndTime       time.Time `json:"end_time"`
+	NumTotal      int64     `json:"num_total"`
+	NumUsers      int       `json:"num_users"`
+	NumSuccessful int64     `json:"num_successful"`
+	NumFailed     int64     `json:"num_failed"`
+	TotalDuration int64     `json:"total_duration"`
 	// unix-timestamp -> count map to calculate a current RPS value
 	RPSMap map[int64]int64 `json:"-"`
 
@@ -128,6 +133,18 @@ type Statistics struct {
 }
 
 const RPSTimeWindow = 10
+
+func (ts *Statistics) Reset() {
+	ts.StartTime = time.Now()
+	ts.NumTotal = 0
+	ts.NumSuccessful = 0
+	ts.NumFailed = 0
+	ts.TotalDuration = 0
+	ts.RPSMap = map[int64]int64{}
+	ts.Tasks = map[string]*TaskStats{}
+	ts.CurrentRPS = 0
+	ts.AverageDuration = 0
+}
 
 func (ts *Statistics) CleanRPSMap() {
 	now := time.Now().Unix()
@@ -143,6 +160,11 @@ func (ts *Statistics) CleanRPSMap() {
 }
 
 func (ts *Statistics) Calculate() {
+	const MinRunsToCalculate = 10
+	if ts.NumTotal < MinRunsToCalculate {
+		return
+	}
+
 	now := time.Now().Unix()
 
 	var count int64
@@ -162,14 +184,14 @@ func (ts *Statistics) Calculate() {
 
 type LoadTest struct {
 	Config Config
-	Status Status
+	Status StatusType
 
-	StartTime     time.Time
-	SpawnedUsers  []User
-	UserSpawnChan chan User
-	TaskRunChan   chan *TaskRun
-	Stats         Statistics
-	Log           *log.Logger
+	Users          map[int64]User
+	StatusChan     chan StatusType
+	UserStatusChan chan User
+	TaskRunChan    chan *TaskRun
+	Stats          Statistics
+	Log            *log.Logger
 }
 
 func NewConfigFromFlags() Config {
@@ -185,6 +207,7 @@ func NewConfigFromFlags() Config {
 	flag.StringVar(&conf.LogPrefix, "log-prefix", "", "Logging prefix (Default empty string)")
 	flag.IntVar(&conf.APIPort, "api-port", 4141, "REST API port to bind to. (Default 4141)")
 	flag.BoolVar(&conf.Verbose, "verbose", false, "Verbose logging (default false)")
+	flag.BoolVar(&conf.SpawnOnStartup, "spawn-on-startup", false, "If true, spawning will begin on startup (Default false)")
 	flag.Parse()
 
 	conf.RequestTimeout = time.Millisecond * time.Duration(req_timeout)
@@ -195,8 +218,8 @@ func NewConfigFromFlags() Config {
 	return conf
 }
 
-func (lt *LoadTest) Stop() {
-	lt.Status = StatusStopping
+func (lt *LoadTest) SetStatus(status StatusType) {
+	lt.StatusChan <- status
 }
 
 func (lt *LoadTest) handleTaskRun(tr *TaskRun) {
@@ -238,11 +261,97 @@ func (lt *LoadTest) handleTaskRun(tr *TaskRun) {
 	taskStat.Unlock()
 }
 
-func (lt *LoadTest) handleSpawnedUser(u User) {
-	lt.SpawnedUsers = append(lt.SpawnedUsers, u)
-	if len(lt.SpawnedUsers) == lt.Config.NumUsers {
+func (lt *LoadTest) spawnUsers(entryTask *Task) {
+	for i := 0; i < lt.Config.NumUsers; i++ {
+		// Create a new User instance
+		var u User
+		uv := reflect.ValueOf(lt.Config.UserType)
+		if !uv.IsValid() {
+			u = NewDefaultUser(entryTask)
+		} else {
+			ok := false
+			u, ok = reflect.New(uv.Type()).Interface().(User)
+			if !ok {
+				lt.Log.Fatalf("failed to cast LoadTest.User to User\n")
+			}
+		}
+
+		// Each user has their own context
+		ctx := NewLoadTestContext(context.Background(), lt)
+		// Save a ref to the user
+		ctx = NewUserContext(ctx, u)
+		// Setup the user instance's local storage
+		ctx = NewStorageContext(ctx, NewStorage())
+
+		u.SetID(int64(i))
+		u.SetContext(ctx)
+
+		go func() {
+			// Sleep according to user ID to ramp up the user spawns
+			preSpawnSleepTime := u.ID() / int64(lt.Config.NumSpawnPerSecond)
+			time.Sleep(time.Second * time.Duration(preSpawnSleepTime))
+
+			u.Spawn()
+
+			u.SetStatus(UserStatusRunning)
+			lt.UserStatusChan <- u
+
+			for lt.Status != StatusStopping {
+				u.Tick()
+				u.Sleep()
+			}
+
+			u.SetStatus(UserStatusStopped)
+			lt.UserStatusChan <- u
+		}()
+	}
+}
+
+func (lt *LoadTest) handleStatus(status StatusType, entryTask *Task) {
+	switch status {
+	case StatusSpawning:
+		if lt.Status != StatusStopped {
+			lt.Log.Printf("invalid state change from %d to %d\n", lt.Status, status)
+			return
+		}
+	case StatusStopping:
+		if lt.Status != StatusRunning {
+			lt.Log.Printf("invalid state change from %d to %d\n", lt.Status, status)
+			return
+		}
+	}
+
+	lt.Status = status
+	if lt.Status == StatusSpawning {
+		lt.spawnUsers(entryTask)
+	}
+}
+
+func (lt *LoadTest) handleUserStatus(u User) {
+	if u.Status() == UserStatusRunning {
+		lt.Users[u.ID()] = u
+	} else if u.Status() == UserStatusStopped {
+		delete(lt.Users, u.ID())
+	}
+
+	lt.Stats.Lock()
+	lt.Stats.NumUsers = len(lt.Users)
+	lt.Stats.Unlock()
+
+	if lt.Status == StatusSpawning && len(lt.Users) == lt.Config.NumUsers {
+		lt.Stats.Lock()
+		lt.Stats.StartTime = time.Now()
+		lt.Stats.Unlock()
 		lt.Status = StatusRunning
 		lt.Log.Printf("All %d users have been spawned, status changed to running\n", lt.Config.NumUsers)
+	}
+
+	if lt.Status == StatusStopping && len(lt.Users) == 0 {
+		lt.Status = StatusStopped
+		lt.Stats.Lock()
+		lt.Stats.EndTime = time.Now()
+		lt.Stats.Unlock()
+		lt.Log.Printf("All users have been stopped, status changed to stopped\n")
 	}
 }
 
@@ -262,78 +371,47 @@ func (lt *LoadTest) runAPIJob() {
 	}
 }
 
-func (lt *LoadTest) handleChannelsJob() {
+func (lt *LoadTest) handleChannelsJob(entryTask *Task) {
 	for {
 		select {
-		case du := <-lt.UserSpawnChan:
-			lt.handleSpawnedUser(du)
+		case du := <-lt.UserStatusChan:
+			lt.handleUserStatus(du)
 		case tr := <-lt.TaskRunChan:
 			lt.handleTaskRun(tr)
+		case s := <-lt.StatusChan:
+			lt.handleStatus(s, entryTask)
 		}
 	}
 }
 
-func (lt *LoadTest) Run(entry_task *Task) {
+func (lt *LoadTest) Run(entryTask *Task) {
 	lt.Log.Println("Starting Load Testing Tool")
 
-	lt.Status = StatusSpawning
+	if lt.Config.SpawnOnStartup {
+		lt.SetStatus(StatusSpawning)
+	}
 
-	go lt.handleChannelsJob()
+	go lt.handleChannelsJob(entryTask)
 	go lt.runAPIJob()
 	go lt.cleanRPSJob()
 
-	wg := sync.WaitGroup{}
-	for i := 0; i < lt.Config.NumUsers; i++ {
-		// Create a new User instance
-		var u User
-		uv := reflect.ValueOf(lt.Config.UserType)
-		if !uv.IsValid() {
-			u = NewDefaultUser(entry_task)
-		} else {
-			ok := false
-			u, ok = reflect.New(uv.Type()).Interface().(User)
-			if !ok {
-				lt.Log.Fatalf("failed to cast LoadTest.User to User\n")
-			}
-		}
-
-		// Each user has their own context
-		ctx := NewLoadTestContext(context.Background(), lt)
-		// Save a ref to the user
-		ctx = NewUserContext(ctx, u)
-		// Setup the user instance's local storage
-		ctx = NewStorageContext(ctx, NewStorage())
-
-		u.SetID(int64(i))
-		u.SetContext(ctx)
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			// Sleep according to user ID to ramp up the user spawns
-			preSpawnSleepTime := u.ID() / int64(lt.Config.NumSpawnPerSecond)
-			time.Sleep(time.Second * time.Duration(preSpawnSleepTime))
-
-			u.Spawn()
-			lt.UserSpawnChan <- u
-			for lt.Status != StatusStopping {
-				u.Tick()
-				u.Sleep()
-			}
-		}()
-	}
-	wg.Wait()
+	// Run forever
+	c := make(chan struct{})
+	<-c
 }
 
 func NewLoadTest(config Config) *LoadTest {
 	return &LoadTest{
-		Config:        config,
-		Status:        StatusStopped,
-		UserSpawnChan: make(chan User, config.NumUsers),
+		Config:         config,
+		Status:         StatusStopped,
+		Users:          make(map[int64]User, config.NumUsers),
+		StatusChan:     make(chan StatusType),
+		UserStatusChan: make(chan User, config.NumUsers),
 		Stats: Statistics{
-			Tasks:  make(map[string]*TaskStats),
-			RPSMap: make(map[int64]int64),
+			Tasks:           make(map[string]*TaskStats),
+			RPSMap:          make(map[int64]int64),
+			CurrentRPS:      0,
+			AverageDuration: 0,
 		},
 		TaskRunChan: make(chan *TaskRun, config.NumUsers),
 		Log:         log.New(config.LogOutput, config.LogPrefix, config.LogFlags),

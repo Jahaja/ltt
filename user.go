@@ -10,9 +10,18 @@ type userContextKeyType int
 
 var userContextKey userContextKeyType
 
+type UserStatusType int
+
+const (
+	UserStatusStopped UserStatusType = iota
+	UserStatusRunning
+)
+
 type User interface {
 	ID() int64
-	SetID(id int64)
+	SetID(int64)
+	SetStatus(UserStatusType)
+	Status() UserStatusType
 
 	SetContext(ctx context.Context)
 	Context() context.Context
@@ -24,6 +33,7 @@ type User interface {
 
 type DefaultUser struct {
 	id           int64
+	status       UserStatusType
 	ctx          context.Context
 	task         *Task
 	subtaskIndex int
@@ -56,6 +66,14 @@ func (du *DefaultUser) SetID(id int64) {
 
 func (du *DefaultUser) ID() int64 {
 	return du.id
+}
+
+func (du *DefaultUser) SetStatus(us UserStatusType) {
+	du.status = us
+}
+
+func (du *DefaultUser) Status() UserStatusType {
+	return du.status
 }
 
 func (du *DefaultUser) SetContext(ctx context.Context) {
