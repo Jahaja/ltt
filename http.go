@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type httpClientContextKeyType int
@@ -25,7 +26,7 @@ func NewHTTPClient(ctx context.Context, baseURI string) *HTTPClient {
 
 	lt := FromContext(ctx)
 	std_client := &http.Client{
-		Timeout: lt.Config.RequestTimeout,
+		Timeout: time.Second * time.Duration(lt.Config.RequestTimeout),
 		Jar:     jar,
 	}
 	client := &HTTPClient{

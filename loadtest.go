@@ -18,28 +18,28 @@ var loadtestContextKey loadtestContextKeyType
 
 type Config struct {
 	// Host to bind the REST API to. default all (empty string).
-	APIHost string
+	APIHost string `json:"api_host"`
 	// Port to bind the REST API to, default 4141
-	APIPort  int
-	NumUsers int
+	APIPort  int `json:"api_port"`
+	NumUsers int `json:"num_users"`
 	// How many users to spawn each second
-	NumSpawnPerSecond int
+	NumSpawnPerSecond int `json:"num_spawn_per_second"`
 	// Default 10 seconds
-	RequestTimeout time.Duration
+	RequestTimeout int `json:"request_timeout"`
 	// Custom user type to override the DefaultUser
-	UserType User
+	UserType User `json:"-"`
 	// Min sleep time between tasks in seconds
-	MinSleepTime int
+	MinSleepTime int `json:"min_sleep_time"`
 	// Max sleep time between tasks in seconds
-	MaxSleepTime int
+	MaxSleepTime int `json:"max_sleep_time"`
 	// Verbose logging
-	Verbose bool
+	Verbose bool `json:"verbose"`
 	// If we should start spawning users on startup
-	SpawnOnStartup bool
+	SpawnOnStartup bool `json:"spawn_on_startup"`
 	// Logging params
-	LogOutput io.Writer
-	LogPrefix string
-	LogFlags  int
+	LogOutput io.Writer `json:"-"`
+	LogPrefix string    `json:"log_prefix"`
+	LogFlags  int       `json:"log_flags"`
 }
 
 type StatusType int
@@ -195,11 +195,10 @@ type LoadTest struct {
 }
 
 func NewConfigFromFlags() Config {
-	var req_timeout int
 	conf := Config{}
 
 	flag.IntVar(&conf.NumUsers, "num-users", 5, "Number of users to spawn")
-	flag.IntVar(&req_timeout, "request-timeout", 5000, "Request timeout in ms (Default 5000)")
+	flag.IntVar(&conf.RequestTimeout, "request-timeout", 5, "Request timeout in seconds (Default 5)")
 	flag.IntVar(&conf.MinSleepTime, "min-sleep-time", 1, "Minimum sleep time between a user's tasks in seconds (Default 1)")
 	flag.IntVar(&conf.MaxSleepTime, "max-sleep-time", 10, "Maximum sleep time between a user's tasks in seconds (Default 10)")
 	flag.IntVar(&conf.NumSpawnPerSecond, "num-spawn-per-sec", 1, "Number of user to spawn per second (Default 1)")
@@ -210,7 +209,6 @@ func NewConfigFromFlags() Config {
 	flag.BoolVar(&conf.SpawnOnStartup, "spawn-on-startup", false, "If true, spawning will begin on startup (Default false)")
 	flag.Parse()
 
-	conf.RequestTimeout = time.Millisecond * time.Duration(req_timeout)
 	if conf.LogOutput == nil {
 		conf.LogOutput = os.Stdout
 	}
