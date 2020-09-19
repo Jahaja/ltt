@@ -68,6 +68,10 @@ func (s StatusType) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%s"`, statusTypes[s])), nil
 }
 
+func (s StatusType) String() string {
+	return statusTypes[s]
+}
+
 const (
 	StatusStopped StatusType = iota
 	StatusSpawning
