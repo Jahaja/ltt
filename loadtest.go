@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -60,7 +61,7 @@ var statusTypesFromString = map[string]StatusType{
 }
 
 func (s *StatusType) UnmarshalJSON(bytes []byte) error {
-	*s = statusTypesFromString[string(bytes)]
+	*s = statusTypesFromString[strings.Trim(string(bytes), "\"")]
 	return nil
 }
 
