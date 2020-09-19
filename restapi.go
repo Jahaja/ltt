@@ -35,9 +35,12 @@ func RunAPIServer(lt *LoadTest) error {
 		if numUsers == 0 {
 			writer.WriteHeader(http.StatusBadRequest)
 			return
+		} else if numUsers == lt.Config.NumUsers {
+			return
 		}
 
 		lt.Config.NumUsers = numUsers
+		lt.SetStatus(StatusSpawning)
 		writer.WriteHeader(http.StatusOK)
 	})
 

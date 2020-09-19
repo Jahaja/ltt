@@ -88,6 +88,7 @@ type TaskRun struct {
 
 type TaskStats struct {
 	sync.Mutex
+	Name            string           `json:"name"`
 	TotalRuns       int64            `json:"total_runs"`
 	NumSuccessful   int64            `json:"num_successful"`
 	NumFailed       int64            `json:"num_failed"`
@@ -118,7 +119,7 @@ func (ts *TaskStats) Calculate() {
 		return flatMetrics[i].Duration < flatMetrics[j].Duration
 	})
 
-	percentiles := []float64{0.75, 0.85, 0.95, 0.99}
+	percentiles := []float64{0.5, 0.75, 0.85, 0.95, 0.99}
 	for _, p := range percentiles {
 		idx := int64(float64(ts.TotalRuns) * p)
 
@@ -136,8 +137,9 @@ func (ts *TaskStats) Calculate() {
 	ts.AverageDuration = float32(ts.TotalDuration) / float32(ts.TotalRuns)
 }
 
-func NewTaskStat() *TaskStats {
+func NewTaskStat(name string) *TaskStats {
 	return &TaskStats{
+		Name:        name,
 		Metrics:     make(map[int64]int64),
 		Percentiles: make(map[int]int64),
 		Errors:      make(map[string]int64),
@@ -267,7 +269,7 @@ func (lt *LoadTest) handleTaskRun(tr *TaskRun) {
 	}
 
 	if _, ok := lt.Stats.Tasks[name]; !ok {
-		lt.Stats.Tasks[name] = NewTaskStat()
+		lt.Stats.Tasks[name] = NewTaskStat(name)
 	}
 
 	taskStat := lt.Stats.Tasks[name]
