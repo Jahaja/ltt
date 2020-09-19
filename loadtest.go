@@ -3,6 +3,7 @@ package ltt
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -51,8 +52,20 @@ var statusTypes = map[StatusType]string{
 	StatusStopping: "stopping",
 }
 
+var statusTypesFromString = map[string]StatusType{
+	"stopped":  StatusStopped,
+	"spawning": StatusSpawning,
+	"running":  StatusRunning,
+	"stopping": StatusStopping,
+}
+
+func (s *StatusType) UnmarshalJSON(bytes []byte) error {
+	*s = statusTypesFromString[string(bytes)]
+	return nil
+}
+
 func (s StatusType) MarshalJSON() ([]byte, error) {
-	return []byte(statusTypes[s]), nil
+	return []byte(fmt.Sprintf(`"%s"`, statusTypes[s])), nil
 }
 
 const (
