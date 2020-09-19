@@ -44,6 +44,17 @@ type Config struct {
 
 type StatusType int
 
+var statusTypes = map[StatusType]string{
+	StatusStopped:  "stopped",
+	StatusSpawning: "spawning",
+	StatusRunning:  "running",
+	StatusStopping: "stopping",
+}
+
+func (s StatusType) MarshalJSON() ([]byte, error) {
+	return []byte(statusTypes[s]), nil
+}
+
 const (
 	StatusStopped StatusType = iota
 	StatusSpawning
@@ -183,15 +194,15 @@ func (ts *Statistics) Calculate() {
 }
 
 type LoadTest struct {
-	Config Config
-	Status StatusType
+	Config Config     `json:"config"`
+	Status StatusType `json:"status"`
 
-	Users          map[int64]User
-	StatusChan     chan StatusType
-	UserStatusChan chan User
-	TaskRunChan    chan *TaskRun
-	Stats          Statistics
-	Log            *log.Logger
+	Users          map[int64]User  `json:"-"`
+	StatusChan     chan StatusType `json:"-"`
+	UserStatusChan chan User       `json:"-"`
+	TaskRunChan    chan *TaskRun   `json:"-"`
+	Stats          *Statistics     `json:"stats"`
+	Log            *log.Logger     `json:"-"`
 }
 
 func NewConfigFromFlags() Config {
@@ -260,7 +271,7 @@ func (lt *LoadTest) handleTaskRun(tr *TaskRun) {
 }
 
 func (lt *LoadTest) spawnUsers(entryTask *Task) {
-	for i := 0; i < lt.Config.NumUsers; i++ {
+	for i := len(lt.Users); i < lt.Config.NumUsers; i++ {
 		// Create a new User instance
 		var u User
 		uv := reflect.ValueOf(lt.Config.UserType)
@@ -285,6 +296,9 @@ func (lt *LoadTest) spawnUsers(entryTask *Task) {
 		u.SetContext(ctx)
 
 		go func() {
+			u.SetStatus(UserStatusSpawning)
+			lt.UserStatusChan <- u
+
 			// Sleep according to user ID to ramp up the user spawns
 			preSpawnSleepTime := u.ID() / int64(lt.Config.NumSpawnPerSecond)
 			time.Sleep(time.Second * time.Duration(preSpawnSleepTime))
@@ -294,7 +308,7 @@ func (lt *LoadTest) spawnUsers(entryTask *Task) {
 			u.SetStatus(UserStatusRunning)
 			lt.UserStatusChan <- u
 
-			for lt.Status != StatusStopping {
+			for lt.Status != StatusStopping && int(u.ID()) < lt.Config.NumUsers {
 				u.Tick()
 				u.Sleep()
 			}
@@ -308,7 +322,7 @@ func (lt *LoadTest) spawnUsers(entryTask *Task) {
 func (lt *LoadTest) handleStatus(status StatusType, entryTask *Task) {
 	switch status {
 	case StatusSpawning:
-		if lt.Status != StatusStopped {
+		if lt.Status != StatusStopped && lt.Status != StatusRunning {
 			lt.Log.Printf("invalid state change from %d to %d\n", lt.Status, status)
 			return
 		}
@@ -326,6 +340,9 @@ func (lt *LoadTest) handleStatus(status StatusType, entryTask *Task) {
 }
 
 func (lt *LoadTest) handleUserStatus(u User) {
+	lt.Log.Printf("user status changed to %s on user %d\n", u.Status(), u.ID())
+
+	prevLen := len(lt.Users)
 	if u.Status() == UserStatusRunning {
 		lt.Users[u.ID()] = u
 	} else if u.Status() == UserStatusStopped {
@@ -336,7 +353,7 @@ func (lt *LoadTest) handleUserStatus(u User) {
 	lt.Stats.NumUsers = len(lt.Users)
 	lt.Stats.Unlock()
 
-	if lt.Status == StatusSpawning && len(lt.Users) == lt.Config.NumUsers {
+	if prevLen != len(lt.Users) && len(lt.Users) == lt.Config.NumUsers {
 		lt.Stats.Lock()
 		lt.Stats.StartTime = time.Now()
 		lt.Stats.Unlock()
@@ -398,6 +415,15 @@ func (lt *LoadTest) Run(entryTask *Task) {
 	<-c
 }
 
+func NewStatistics() *Statistics {
+	return &Statistics{
+		Tasks:           make(map[string]*TaskStats),
+		RPSMap:          make(map[int64]int64),
+		CurrentRPS:      0,
+		AverageDuration: 0,
+	}
+}
+
 func NewLoadTest(config Config) *LoadTest {
 	return &LoadTest{
 		Config:         config,
@@ -405,14 +431,9 @@ func NewLoadTest(config Config) *LoadTest {
 		Users:          make(map[int64]User, config.NumUsers),
 		StatusChan:     make(chan StatusType),
 		UserStatusChan: make(chan User, config.NumUsers),
-		Stats: Statistics{
-			Tasks:           make(map[string]*TaskStats),
-			RPSMap:          make(map[int64]int64),
-			CurrentRPS:      0,
-			AverageDuration: 0,
-		},
-		TaskRunChan: make(chan *TaskRun, config.NumUsers),
-		Log:         log.New(config.LogOutput, config.LogPrefix, config.LogFlags),
+		Stats:          NewStatistics(),
+		TaskRunChan:    make(chan *TaskRun, config.NumUsers),
+		Log:            log.New(config.LogOutput, config.LogPrefix, config.LogFlags),
 	}
 }
 

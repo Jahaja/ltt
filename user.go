@@ -14,8 +14,19 @@ type UserStatusType int
 
 const (
 	UserStatusStopped UserStatusType = iota
+	UserStatusSpawning
 	UserStatusRunning
 )
+
+var userStatusTypeStrings = map[UserStatusType]string{
+	UserStatusStopped:  "stopped",
+	UserStatusSpawning: "spawning",
+	UserStatusRunning:  "running",
+}
+
+func (ust UserStatusType) String() string {
+	return userStatusTypeStrings[ust]
+}
 
 type User interface {
 	ID() int64
