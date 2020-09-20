@@ -3,17 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
-	"fmt"
 	"github.com/Jahaja/ltt"
 )
-
-func help() {
-	fmt.Println("Load Testing Tool")
-	fmt.Println("")
-	fmt.Println("Options")
-	flag.PrintDefaults()
-}
 
 func main() {
 	conf := ltt.NewConfigFromFlags()
@@ -27,8 +18,8 @@ func main() {
 		user.SetContext(ctx)
 
 		data, _ := json.Marshal(map[string]string{
-			"username": "coach@360player.local",
-			"password": "password",
+			"username": "",
+			"password": "",
 		})
 
 		resp, err := client.Post("/v1/auth", data)
