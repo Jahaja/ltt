@@ -43,6 +43,7 @@ type User interface {
 	Spawn()
 	Tick()
 	Sleep()
+	SleepSeconds(seconds int)
 }
 
 type DefaultUser struct {
@@ -52,6 +53,7 @@ type DefaultUser struct {
 	ctx            context.Context
 	task           *Task
 	subtaskIndex   int
+	cancel         context.CancelFunc
 }
 
 func NewDefaultUser(task *Task) *DefaultUser {
@@ -88,6 +90,10 @@ func (du *DefaultUser) SetStatus(us UserStatusType) {
 	if du.statusCallback != nil {
 		du.statusCallback(du.status)
 	}
+
+	if du.cancel != nil && du.status == UserStatusStopping {
+		du.cancel()
+	}
 }
 
 func (du *DefaultUser) SetStatusCallback(cb func(statusType UserStatusType)) {
@@ -109,7 +115,6 @@ func (du *DefaultUser) Context() context.Context {
 func (du *DefaultUser) Spawn() {
 	// Run the entry task on spawn
 	du.runTask()
-	du.Sleep()
 }
 
 func (du *DefaultUser) Tick() {
@@ -197,11 +202,22 @@ func (du *DefaultUser) runTask() {
 	}
 }
 
+func (du *DefaultUser) SleepSeconds(seconds int) {
+	ctx, cancel := context.WithTimeout(du.Context(), time.Second*time.Duration(seconds))
+	du.cancel = cancel
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func (du *DefaultUser) Sleep() {
 	lt := FromContext(du.Context())
 
 	rand.Seed(time.Now().UnixNano())
-
 	sleepTime := lt.Config.MinSleepTime
 	sleepTime += rand.Intn(lt.Config.MaxSleepTime - lt.Config.MinSleepTime)
 
@@ -209,5 +225,5 @@ func (du *DefaultUser) Sleep() {
 		lt.Log.Printf("DefaultUser(%d): sleeping for %d seconds\n", du.ID(), sleepTime)
 	}
 
-	time.Sleep(time.Second * time.Duration(sleepTime))
+	du.SleepSeconds(sleepTime)
 }

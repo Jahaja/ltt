@@ -157,7 +157,7 @@ type Statistics struct {
 	StartTime     time.Time `json:"start_time"`
 	EndTime       time.Time `json:"end_time"`
 	NumTotal      int64     `json:"num_total"`
-	NumUsers      int       `json:"num_users"`
+	RunningUsers  int       `json:"num_users"`
 	NumSuccessful int64     `json:"num_successful"`
 	NumFailed     int64     `json:"num_failed"`
 	TotalDuration int64     `json:"total_duration"`
@@ -220,16 +220,17 @@ func (ts *Statistics) Calculate() {
 }
 
 type LoadTest struct {
-	Config        Config          `json:"config"`
-	Status        StatusType      `json:"status"`
-	Users         map[int64]User  `json:"-"`
-	StatusChan    chan StatusType `json:"-"`
-	TaskRunChan   chan *TaskRun   `json:"-"`
-	Stats         *Statistics     `json:"stats"`
-	Log           *log.Logger     `json:"-"`
-	SpawnLock     sync.Mutex      `json:"-"`
-	TargetUserNum int             `json:"target_user_num"`
-	NextUserID    int64           `json:"-"`
+	Config Config     `json:"config"`
+	Status StatusType `json:"status"`
+	// Map of created users
+	UserMap     map[int64]User  `json:"-"`
+	UserMapLock sync.Mutex      `json:"-"`
+	StatusChan  chan StatusType `json:"-"`
+	TaskRunChan chan *TaskRun   `json:"-"`
+	Stats       *Statistics     `json:"stats"`
+	Log         *log.Logger     `json:"-"`
+	// Target number of user to spawn
+	TargetUserNum int `json:"target_user_num"`
 }
 
 func NewConfigFromFlags() Config {
@@ -298,35 +299,38 @@ func (lt *LoadTest) handleTaskRun(tr *TaskRun) {
 }
 
 func (lt *LoadTest) usersJob(entryTask *Task) {
+	var lastNRU int
 	for {
-		currNumUsers := len(lt.Users)
+		if lastNRU != lt.Stats.RunningUsers {
+			lt.Stats.Lock()
+			if lt.Stats.RunningUsers == 0 {
+				lt.Status = StatusStopped
+				lt.Stats.EndTime = time.Now()
+				lt.Log.Printf("All users have been stopped, status changed to stopped\n")
+			} else if lt.Stats.RunningUsers == lt.TargetUserNum {
+				lt.Status = StatusRunning
+				lt.Stats.StartTime = time.Now()
+				lt.Log.Printf("All %d users have been spawned, status changed to running\n", lt.TargetUserNum)
+			}
+			lt.Stats.Unlock()
+		}
+
+		lastNRU = lt.Stats.RunningUsers
+		lt.UserMapLock.Lock()
+		numUsers := len(lt.UserMap)
+		lt.UserMapLock.Unlock()
+
 		var diff int
-		if currNumUsers > lt.TargetUserNum {
+		if numUsers > lt.TargetUserNum {
 			if lt.TargetUserNum == 0 {
 				lt.SetStatus(StatusStopping)
 			}
-			diff = currNumUsers - lt.TargetUserNum
+			diff = numUsers - lt.TargetUserNum
 			lt.stopUsers(diff)
-		} else if currNumUsers < lt.TargetUserNum {
+		} else if numUsers < lt.TargetUserNum {
 			lt.SetStatus(StatusSpawning)
-			diff = lt.TargetUserNum - currNumUsers
+			diff = lt.TargetUserNum - numUsers
 			lt.spawnUsers(diff, entryTask)
-		}
-
-		if diff != 0 {
-			if len(lt.Users) == 0 {
-				lt.Status = StatusStopped
-				lt.Stats.Lock()
-				lt.Stats.EndTime = time.Now()
-				lt.Stats.Unlock()
-				lt.Log.Printf("All users have been stopped, status changed to stopped\n")
-			} else if len(lt.Users) == lt.TargetUserNum {
-				lt.Status = StatusRunning
-				lt.Stats.Lock()
-				lt.Stats.StartTime = time.Now()
-				lt.Stats.Unlock()
-				lt.Log.Printf("All %d users have been spawned, status changed to running\n", lt.TargetUserNum)
-			}
 		}
 
 		time.Sleep(time.Second)
@@ -334,31 +338,20 @@ func (lt *LoadTest) usersJob(entryTask *Task) {
 }
 
 func (lt *LoadTest) stopUsers(num int) {
+	defer lt.UserMapLock.Unlock()
+	lt.UserMapLock.Lock()
+
 	i := 0
-	wg := &sync.WaitGroup{}
-	for k := range lt.Users {
+	for _, u := range lt.UserMap {
 		if i >= num {
 			break
 		}
-
-		wg.Add(1)
-		u := lt.Users[k]
-		u.SetStatusCallback(func(status UserStatusType) {
-			lt.Log.Printf("status callback for user %d: %s\n", u.ID(), status)
-			if status == UserStatusStopped {
-				wg.Done()
-			}
-		})
-
-		delete(lt.Users, k)
 		u.SetStatus(UserStatusStopping)
 		i++
 	}
-	wg.Wait()
 }
 
 func (lt *LoadTest) spawnUsers(num int, entryTask *Task) {
-	wg := sync.WaitGroup{}
 	for i := 0; i < num; i++ {
 		// Create a new User instance
 		var u User
@@ -380,34 +373,44 @@ func (lt *LoadTest) spawnUsers(num int, entryTask *Task) {
 		// Setup the user instance's local storage
 		ctx = NewStorageContext(ctx, NewStorage())
 
-		lt.NextUserID++
-		u.SetID(lt.NextUserID)
+		u.SetID(int64(i))
 		u.SetContext(ctx)
 
-		wg.Add(1)
+		lt.UserMapLock.Lock()
+		lt.UserMap[u.ID()] = u
+		lt.UserMapLock.Unlock()
+
 		go func() {
 			u.SetStatus(UserStatusSpawning)
 
 			// Sleep according to user ID to ramp up the user spawns
-			preSpawnSleepTime := (u.ID() % int64(lt.TargetUserNum)) / int64(lt.Config.NumSpawnPerSecond)
-			lt.Log.Printf("pre-spawn sleep time: %d for user %d\n", preSpawnSleepTime, u.ID())
-			time.Sleep(time.Second * time.Duration(preSpawnSleepTime))
+			sleepTime := (int(u.ID()) % lt.TargetUserNum) / lt.Config.NumSpawnPerSecond
+			lt.Log.Printf("pre-spawn sleep time: %d for user %d\n", sleepTime, u.ID())
+			u.SleepSeconds(sleepTime)
+
+			lt.Stats.Lock()
+			lt.Stats.RunningUsers++
+			lt.Stats.Unlock()
 
 			u.Spawn()
 
 			u.SetStatus(UserStatusRunning)
-			lt.Users[u.ID()] = u
-			wg.Done()
-
 			for u.Status() == UserStatusRunning {
 				u.Tick()
 				u.Sleep()
 			}
 
+			lt.Stats.Lock()
+			lt.Stats.RunningUsers--
+			lt.Stats.Unlock()
+
+			lt.UserMapLock.Lock()
+			delete(lt.UserMap, u.ID())
+			lt.UserMapLock.Unlock()
+
 			u.SetStatus(UserStatusStopped)
 		}()
 	}
-	wg.Wait()
 }
 
 func (lt *LoadTest) handleStatus(status StatusType) {
@@ -446,7 +449,6 @@ func (lt *LoadTest) Run(entryTask *Task) {
 
 	if lt.Config.SpawnOnStartup {
 		lt.TargetUserNum = lt.Config.NumUsers
-		lt.SetStatus(StatusSpawning)
 	}
 
 	go lt.handleChannelsJob()
@@ -472,7 +474,7 @@ func NewLoadTest(config Config) *LoadTest {
 	return &LoadTest{
 		Config:      config,
 		Status:      StatusStopped,
-		Users:       make(map[int64]User, config.NumUsers),
+		UserMap:     make(map[int64]User, config.NumUsers),
 		StatusChan:  make(chan StatusType),
 		Stats:       NewStatistics(),
 		TaskRunChan: make(chan *TaskRun, config.NumUsers),

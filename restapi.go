@@ -32,26 +32,7 @@ func RunAPIServer(lt *LoadTest) error {
 	http.HandleFunc("/set-num-users", func(writer http.ResponseWriter, request *http.Request) {
 		numUsers, _ := strconv.Atoi(request.URL.Query().Get("num-users"))
 		lt.Log.Printf("http: /set-num-users request, num-users: %d\n", numUsers)
-		if numUsers == 0 {
-			writer.WriteHeader(http.StatusBadRequest)
-			return
-		} else if numUsers == lt.TargetUserNum {
-			return
-		}
-
-		lt.Config.NumUsers = numUsers
-		writer.WriteHeader(http.StatusOK)
-	})
-
-	http.HandleFunc("/start", func(writer http.ResponseWriter, request *http.Request) {
-		lt.Log.Println("http: /start request")
-		lt.TargetUserNum = lt.Config.NumUsers
-		writer.WriteHeader(http.StatusOK)
-	})
-
-	http.HandleFunc("/stop", func(writer http.ResponseWriter, request *http.Request) {
-		lt.Log.Println("http: /stop request")
-		lt.TargetUserNum = 0
+		lt.TargetUserNum = numUsers
 		writer.WriteHeader(http.StatusOK)
 	})
 
