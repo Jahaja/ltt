@@ -36,15 +36,15 @@ func NewConfigFromFlags() Config {
 	conf := Config{}
 
 	flag.IntVar(&conf.NumUsers, "num-users", 5, "Number of users to spawn")
-	flag.IntVar(&conf.RequestTimeout, "request-timeout", 5, "Request timeout in seconds (Default 5)")
-	flag.IntVar(&conf.MinSleepTime, "min-sleep-time", 1, "Minimum sleep time between a user's tasks in seconds (Default 1)")
-	flag.IntVar(&conf.MaxSleepTime, "max-sleep-time", 10, "Maximum sleep time between a user's tasks in seconds (Default 10)")
-	flag.IntVar(&conf.NumSpawnPerSecond, "num-spawn-per-sec", 1, "Number of user to spawn per second (Default 1)")
-	flag.StringVar(&conf.APIHost, "api-host", "", "REST API port to bind to. (Default all, empty string)")
-	flag.StringVar(&conf.LogPrefix, "log-prefix", "", "Logging prefix (Default empty string)")
-	flag.IntVar(&conf.APIPort, "api-port", 4141, "REST API port to bind to. (Default 4141)")
-	flag.BoolVar(&conf.Verbose, "verbose", false, "Verbose logging (default false)")
-	flag.BoolVar(&conf.SpawnOnStartup, "spawn-on-startup", false, "If true, spawning will begin on startup (Default false)")
+	flag.IntVar(&conf.RequestTimeout, "request-timeout", 5, "Request timeout in seconds")
+	flag.IntVar(&conf.MinSleepTime, "min-sleep-time", 1, "Minimum sleep time between a user's tasks in seconds")
+	flag.IntVar(&conf.MaxSleepTime, "max-sleep-time", 10, "Maximum sleep time between a user's tasks in seconds")
+	flag.IntVar(&conf.NumSpawnPerSecond, "num-spawn-per-sec", 1, "Number of user to spawn per second")
+	flag.StringVar(&conf.APIHost, "api-host", "", "REST API port to bind to.")
+	flag.StringVar(&conf.LogPrefix, "log-prefix", "", "Logging prefix")
+	flag.IntVar(&conf.APIPort, "api-port", 4141, "REST API port to bind to.")
+	flag.BoolVar(&conf.Verbose, "verbose", false, "Verbose logging")
+	flag.BoolVar(&conf.SpawnOnStartup, "spawn-on-startup", false, "If true, spawning will begin on startup")
 	flag.Parse()
 
 	if conf.LogOutput == nil {
