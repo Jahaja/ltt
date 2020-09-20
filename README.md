@@ -5,6 +5,70 @@ Largely based on the Python project Locust.
 Sets up an HTTP API that provides the load test data in JSON.
 
 # Usage
+
+### Example
+```go
+func main() {
+	conf := ltt.NewConfigFromFlags()
+	lt := ltt.NewLoadTest(conf)
+  
+        // Set up auth as an entry task for each simulated user
+	entryTask := ltt.NewEntryTask("auth", func(ctx context.Context) error {
+		user := ltt.UserFromContext(ctx)
+		client := ltt.NewHTTPClient(ctx, "http://localhost:4000")
+
+		ctx = ltt.NewHTTPClientContext(ctx, client)
+		user.SetContext(ctx)
+
+		data, _ := json.Marshal(map[string]string{
+			"username": "",
+			"password": "",
+		})
+
+		resp, err := client.Post("/v1/auth", data)
+		if err != nil {
+			return err
+		}
+
+		obj := make(map[string]string)
+		err = resp.JSON(&obj)
+		if err != nil {
+			return err
+		}
+
+		client.Headers.Set("Authorization", "Bearer "+obj["token"])
+		return nil
+	}, ltt.TaskOptions{})
+  
+        // Add a profile section and a few sub tasks.
+        // The next subtask to run is chosen by random according to their weight after
+        // each task run + sleep (which simulates user usage/reading time)
+	entryTask.AddSection("profile", func(t *ltt.Task) {
+		t.AddSubTask("view", func(ctx context.Context) error {
+			client := ltt.HTTPClientFromContext(ctx)
+			_, err := client.Get("/v1/me")
+			if err != nil {
+				return err
+			}
+			return nil
+		}, ltt.TaskOptions{Weight: 10})
+
+		t.AddSubTask("edit", func(ctx context.Context) error {
+			client := ltt.HTTPClientFromContext(ctx)
+			_, err := client.Patch("/profile", nil)
+			if err != nil {
+				return err
+			}
+			return nil
+		}, ltt.TaskOptions{Weight: 1})
+
+	}, ltt.TaskOptions{Weight: 1})
+
+	lt.Run(entryTask)
+}
+```
+
+### CLI Options
 ```
 Usage of ltt:
   -api-host string
