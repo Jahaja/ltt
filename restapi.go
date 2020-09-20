@@ -35,24 +35,23 @@ func RunAPIServer(lt *LoadTest) error {
 		if numUsers == 0 {
 			writer.WriteHeader(http.StatusBadRequest)
 			return
-		} else if numUsers == lt.Config.NumUsers {
+		} else if numUsers == lt.TargetUserNum {
 			return
 		}
 
 		lt.Config.NumUsers = numUsers
-		lt.SetStatus(StatusSpawning)
 		writer.WriteHeader(http.StatusOK)
 	})
 
 	http.HandleFunc("/start", func(writer http.ResponseWriter, request *http.Request) {
 		lt.Log.Println("http: /start request")
-		lt.SetStatus(StatusSpawning)
+		lt.TargetUserNum = lt.Config.NumUsers
 		writer.WriteHeader(http.StatusOK)
 	})
 
 	http.HandleFunc("/stop", func(writer http.ResponseWriter, request *http.Request) {
 		lt.Log.Println("http: /stop request")
-		lt.SetStatus(StatusStopping)
+		lt.TargetUserNum = 0
 		writer.WriteHeader(http.StatusOK)
 	})
 

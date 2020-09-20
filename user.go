@@ -14,12 +14,14 @@ type UserStatusType int
 
 const (
 	UserStatusStopped UserStatusType = iota
+	UserStatusStopping
 	UserStatusSpawning
 	UserStatusRunning
 )
 
 var userStatusTypeStrings = map[UserStatusType]string{
 	UserStatusStopped:  "stopped",
+	UserStatusStopping: "stopping",
 	UserStatusSpawning: "spawning",
 	UserStatusRunning:  "running",
 }
@@ -32,6 +34,7 @@ type User interface {
 	ID() int64
 	SetID(int64)
 	SetStatus(UserStatusType)
+	SetStatusCallback(func(statusType UserStatusType))
 	Status() UserStatusType
 
 	SetContext(ctx context.Context)
@@ -43,11 +46,12 @@ type User interface {
 }
 
 type DefaultUser struct {
-	id           int64
-	status       UserStatusType
-	ctx          context.Context
-	task         *Task
-	subtaskIndex int
+	id             int64
+	status         UserStatusType
+	statusCallback func(UserStatusType)
+	ctx            context.Context
+	task           *Task
+	subtaskIndex   int
 }
 
 func NewDefaultUser(task *Task) *DefaultUser {
@@ -81,6 +85,13 @@ func (du *DefaultUser) ID() int64 {
 
 func (du *DefaultUser) SetStatus(us UserStatusType) {
 	du.status = us
+	if du.statusCallback != nil {
+		du.statusCallback(du.status)
+	}
+}
+
+func (du *DefaultUser) SetStatusCallback(cb func(statusType UserStatusType)) {
+	du.statusCallback = cb
 }
 
 func (du *DefaultUser) Status() UserStatusType {

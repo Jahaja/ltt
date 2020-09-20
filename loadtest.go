@@ -101,7 +101,14 @@ type TaskStats struct {
 
 func (ts *TaskStats) Calculate() {
 	const MinRunsToCalculate = 10
+	percentiles := []float64{0.5, 0.75, 0.85, 0.95, 0.99}
+
 	if ts.TotalRuns < MinRunsToCalculate {
+		// set to zero to make output more consistent
+		for _, p := range percentiles {
+			ts.Percentiles[int(p*100)] = 0
+		}
+
 		return
 	}
 
@@ -119,7 +126,6 @@ func (ts *TaskStats) Calculate() {
 		return flatMetrics[i].Duration < flatMetrics[j].Duration
 	})
 
-	percentiles := []float64{0.5, 0.75, 0.85, 0.95, 0.99}
 	for _, p := range percentiles {
 		idx := int64(float64(ts.TotalRuns) * p)
 
@@ -214,15 +220,16 @@ func (ts *Statistics) Calculate() {
 }
 
 type LoadTest struct {
-	Config Config     `json:"config"`
-	Status StatusType `json:"status"`
-
-	Users          map[int64]User  `json:"-"`
-	StatusChan     chan StatusType `json:"-"`
-	UserStatusChan chan User       `json:"-"`
-	TaskRunChan    chan *TaskRun   `json:"-"`
-	Stats          *Statistics     `json:"stats"`
-	Log            *log.Logger     `json:"-"`
+	Config        Config          `json:"config"`
+	Status        StatusType      `json:"status"`
+	Users         map[int64]User  `json:"-"`
+	StatusChan    chan StatusType `json:"-"`
+	TaskRunChan   chan *TaskRun   `json:"-"`
+	Stats         *Statistics     `json:"stats"`
+	Log           *log.Logger     `json:"-"`
+	SpawnLock     sync.Mutex      `json:"-"`
+	TargetUserNum int             `json:"target_user_num"`
+	NextUserID    int64           `json:"-"`
 }
 
 func NewConfigFromFlags() Config {
@@ -290,8 +297,69 @@ func (lt *LoadTest) handleTaskRun(tr *TaskRun) {
 	taskStat.Unlock()
 }
 
-func (lt *LoadTest) spawnUsers(entryTask *Task) {
-	for i := len(lt.Users); i < lt.Config.NumUsers; i++ {
+func (lt *LoadTest) usersJob(entryTask *Task) {
+	for {
+		currNumUsers := len(lt.Users)
+		var diff int
+		if currNumUsers > lt.TargetUserNum {
+			if lt.TargetUserNum == 0 {
+				lt.SetStatus(StatusStopping)
+			}
+			diff = currNumUsers - lt.TargetUserNum
+			lt.stopUsers(diff)
+		} else if currNumUsers < lt.TargetUserNum {
+			lt.SetStatus(StatusSpawning)
+			diff = lt.TargetUserNum - currNumUsers
+			lt.spawnUsers(diff, entryTask)
+		}
+
+		if diff != 0 {
+			if len(lt.Users) == 0 {
+				lt.Status = StatusStopped
+				lt.Stats.Lock()
+				lt.Stats.EndTime = time.Now()
+				lt.Stats.Unlock()
+				lt.Log.Printf("All users have been stopped, status changed to stopped\n")
+			} else if len(lt.Users) == lt.TargetUserNum {
+				lt.Status = StatusRunning
+				lt.Stats.Lock()
+				lt.Stats.StartTime = time.Now()
+				lt.Stats.Unlock()
+				lt.Log.Printf("All %d users have been spawned, status changed to running\n", lt.TargetUserNum)
+			}
+		}
+
+		time.Sleep(time.Second)
+	}
+}
+
+func (lt *LoadTest) stopUsers(num int) {
+	i := 0
+	wg := &sync.WaitGroup{}
+	for k := range lt.Users {
+		if i >= num {
+			break
+		}
+
+		wg.Add(1)
+		u := lt.Users[k]
+		u.SetStatusCallback(func(status UserStatusType) {
+			lt.Log.Printf("status callback for user %d: %s\n", u.ID(), status)
+			if status == UserStatusStopped {
+				wg.Done()
+			}
+		})
+
+		delete(lt.Users, k)
+		u.SetStatus(UserStatusStopping)
+		i++
+	}
+	wg.Wait()
+}
+
+func (lt *LoadTest) spawnUsers(num int, entryTask *Task) {
+	wg := sync.WaitGroup{}
+	for i := 0; i < num; i++ {
 		// Create a new User instance
 		var u User
 		uv := reflect.ValueOf(lt.Config.UserType)
@@ -312,82 +380,38 @@ func (lt *LoadTest) spawnUsers(entryTask *Task) {
 		// Setup the user instance's local storage
 		ctx = NewStorageContext(ctx, NewStorage())
 
-		u.SetID(int64(i))
+		lt.NextUserID++
+		u.SetID(lt.NextUserID)
 		u.SetContext(ctx)
 
+		wg.Add(1)
 		go func() {
 			u.SetStatus(UserStatusSpawning)
-			lt.UserStatusChan <- u
 
 			// Sleep according to user ID to ramp up the user spawns
-			preSpawnSleepTime := u.ID() / int64(lt.Config.NumSpawnPerSecond)
+			preSpawnSleepTime := (u.ID() % int64(lt.TargetUserNum)) / int64(lt.Config.NumSpawnPerSecond)
+			lt.Log.Printf("pre-spawn sleep time: %d for user %d\n", preSpawnSleepTime, u.ID())
 			time.Sleep(time.Second * time.Duration(preSpawnSleepTime))
 
 			u.Spawn()
 
 			u.SetStatus(UserStatusRunning)
-			lt.UserStatusChan <- u
+			lt.Users[u.ID()] = u
+			wg.Done()
 
-			for lt.Status != StatusStopping && int(u.ID()) < lt.Config.NumUsers {
+			for u.Status() == UserStatusRunning {
 				u.Tick()
 				u.Sleep()
 			}
 
 			u.SetStatus(UserStatusStopped)
-			lt.UserStatusChan <- u
 		}()
 	}
+	wg.Wait()
 }
 
-func (lt *LoadTest) handleStatus(status StatusType, entryTask *Task) {
-	switch status {
-	case StatusSpawning:
-		if lt.Status != StatusStopped && lt.Status != StatusRunning {
-			lt.Log.Printf("invalid state change from %d to %d\n", lt.Status, status)
-			return
-		}
-	case StatusStopping:
-		if lt.Status != StatusRunning {
-			lt.Log.Printf("invalid state change from %d to %d\n", lt.Status, status)
-			return
-		}
-	}
-
+func (lt *LoadTest) handleStatus(status StatusType) {
 	lt.Status = status
-	if lt.Status == StatusSpawning {
-		lt.spawnUsers(entryTask)
-	}
-}
-
-func (lt *LoadTest) handleUserStatus(u User) {
-	lt.Log.Printf("user status changed to %s on user %d\n", u.Status(), u.ID())
-
-	prevLen := len(lt.Users)
-	if u.Status() == UserStatusRunning {
-		lt.Users[u.ID()] = u
-	} else if u.Status() == UserStatusStopped {
-		delete(lt.Users, u.ID())
-	}
-
-	lt.Stats.Lock()
-	lt.Stats.NumUsers = len(lt.Users)
-	lt.Stats.Unlock()
-
-	if prevLen != len(lt.Users) && len(lt.Users) == lt.Config.NumUsers {
-		lt.Stats.Lock()
-		lt.Stats.StartTime = time.Now()
-		lt.Stats.Unlock()
-		lt.Status = StatusRunning
-		lt.Log.Printf("All %d users have been spawned, status changed to running\n", lt.Config.NumUsers)
-	}
-
-	if lt.Status == StatusStopping && len(lt.Users) == 0 {
-		lt.Status = StatusStopped
-		lt.Stats.Lock()
-		lt.Stats.EndTime = time.Now()
-		lt.Stats.Unlock()
-		lt.Log.Printf("All users have been stopped, status changed to stopped\n")
-	}
 }
 
 func (lt *LoadTest) cleanRPSJob() {
@@ -406,15 +430,13 @@ func (lt *LoadTest) runAPIJob() {
 	}
 }
 
-func (lt *LoadTest) handleChannelsJob(entryTask *Task) {
+func (lt *LoadTest) handleChannelsJob() {
 	for {
 		select {
-		case du := <-lt.UserStatusChan:
-			lt.handleUserStatus(du)
 		case tr := <-lt.TaskRunChan:
 			lt.handleTaskRun(tr)
 		case s := <-lt.StatusChan:
-			lt.handleStatus(s, entryTask)
+			lt.handleStatus(s)
 		}
 	}
 }
@@ -423,12 +445,14 @@ func (lt *LoadTest) Run(entryTask *Task) {
 	lt.Log.Println("Starting Load Testing Tool")
 
 	if lt.Config.SpawnOnStartup {
+		lt.TargetUserNum = lt.Config.NumUsers
 		lt.SetStatus(StatusSpawning)
 	}
 
-	go lt.handleChannelsJob(entryTask)
+	go lt.handleChannelsJob()
 	go lt.runAPIJob()
 	go lt.cleanRPSJob()
+	go lt.usersJob(entryTask)
 
 	// Run forever
 	c := make(chan struct{})
@@ -446,14 +470,13 @@ func NewStatistics() *Statistics {
 
 func NewLoadTest(config Config) *LoadTest {
 	return &LoadTest{
-		Config:         config,
-		Status:         StatusStopped,
-		Users:          make(map[int64]User, config.NumUsers),
-		StatusChan:     make(chan StatusType),
-		UserStatusChan: make(chan User, config.NumUsers),
-		Stats:          NewStatistics(),
-		TaskRunChan:    make(chan *TaskRun, config.NumUsers),
-		Log:            log.New(config.LogOutput, config.LogPrefix, config.LogFlags),
+		Config:      config,
+		Status:      StatusStopped,
+		Users:       make(map[int64]User, config.NumUsers),
+		StatusChan:  make(chan StatusType),
+		Stats:       NewStatistics(),
+		TaskRunChan: make(chan *TaskRun, config.NumUsers),
+		Log:         log.New(config.LogOutput, config.LogPrefix, config.LogFlags),
 	}
 }
 
